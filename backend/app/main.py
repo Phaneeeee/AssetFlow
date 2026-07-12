@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.routers import auth
+from backend.app.routers import auth, dashboard
 
 app = FastAPI(
     title="AssetFlow API",
@@ -18,9 +18,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "service": "assetflow-api"}
-
