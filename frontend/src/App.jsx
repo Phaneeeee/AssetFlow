@@ -218,7 +218,10 @@ function AppShell({ session, onLogout }) {
         {activeView === "Organization Setup" && (
           <OrganizationSetup isAdmin={isAdmin} />
         )}
-        {activeView !== "Dashboard" && activeView !== "Organization Setup" && (
+        {activeView === "Assets" && <AssetDirectory />}
+        {activeView !== "Dashboard" &&
+          activeView !== "Organization Setup" &&
+          activeView !== "Assets" && (
           <EmptyModule title={activeView} />
         )}
       </section>
@@ -300,6 +303,271 @@ function DashboardHome() {
       </section>
     </>
   );
+}
+
+function AssetDirectory() {
+  const [directory, setDirectory] = useState(null);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState({
+    query: "",
+    category: "All",
+    status: "All",
+    department: "All",
+  });
+  const [form, setForm] = useState({
+    name: "",
+    category: "Electronics",
+    serial_number: "",
+    acquisition_date: "2026-07-12",
+    acquisition_cost: "0",
+    condition: "Good",
+    location: "",
+    department: "",
+    shared_bookable: false,
+  });
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadAssets() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/assets`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load assets");
+        }
+
+        if (!ignore) {
+          setDirectory(data);
+        }
+      } catch (assetError) {
+        if (!ignore) {
+          setError(assetError.message);
+        }
+      }
+    }
+
+    loadAssets();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const assets = directory?.assets ?? [];
+  const categories = uniqueValues(assets.map((asset) => asset.category));
+  const departments = uniqueValues(assets.map((asset) => asset.department).filter(Boolean));
+
+  const visibleAssets = assets.filter((asset) => {
+    const query = filters.query.trim().toLowerCase();
+    const matchesQuery =
+      !query ||
+      [asset.tag, asset.name, asset.serial_number, asset.location]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+
+    return (
+      matchesQuery &&
+      (filters.category === "All" || asset.category === filters.category) &&
+      (filters.status === "All" || asset.status === filters.status) &&
+      (filters.department === "All" || asset.department === filters.department)
+    );
+  });
+
+  function updateFilter(event) {
+    const { name, value } = event.target;
+    setFilters((current) => ({ ...current, [name]: value }));
+  }
+
+  function updateAssetForm(event) {
+    const { checked, name, type, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  }
+
+  async function registerAsset(event) {
+    event.preventDefault();
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          acquisition_cost: Number(form.acquisition_cost),
+          department: form.department || null,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to register asset");
+      }
+
+      setDirectory((current) => ({
+        ...current,
+        assets: [...(current?.assets ?? []), data],
+      }));
+      setForm((current) => ({
+        ...current,
+        name: "",
+        serial_number: "",
+        acquisition_cost: "0",
+        location: "",
+        department: "",
+        shared_bookable: false,
+      }));
+    } catch (registerError) {
+      setError(registerError.message);
+    }
+  }
+
+  return (
+    <section className="asset-module">
+      {error && <p className="form-error dashboard-error">{error}</p>}
+
+      <div className="asset-toolbar">
+        <input
+          name="query"
+          value={filters.query}
+          onChange={updateFilter}
+          placeholder="Search by tag, serial, or QR code..."
+          aria-label="Search assets"
+        />
+        <select name="category" value={filters.category} onChange={updateFilter}>
+          <option>All</option>
+          {categories.map((category) => (
+            <option key={category}>{category}</option>
+          ))}
+        </select>
+        <select name="status" value={filters.status} onChange={updateFilter}>
+          <option>All</option>
+          {(directory?.statuses ?? []).map((status) => (
+            <option key={status}>{status}</option>
+          ))}
+        </select>
+        <select name="department" value={filters.department} onChange={updateFilter}>
+          <option>All</option>
+          {departments.map((department) => (
+            <option key={department}>{department}</option>
+          ))}
+        </select>
+        <button type="button" onClick={registerAsset}>
+          + Register Asset
+        </button>
+      </div>
+
+      <section className="register-panel" aria-label="Register asset">
+        <input
+          name="name"
+          value={form.name}
+          onChange={updateAssetForm}
+          placeholder="Asset name"
+          required
+        />
+        <select name="category" value={form.category} onChange={updateAssetForm}>
+          {["Electronics", "Furniture", "Vehicles"].map((category) => (
+            <option key={category}>{category}</option>
+          ))}
+        </select>
+        <input
+          name="serial_number"
+          value={form.serial_number}
+          onChange={updateAssetForm}
+          placeholder="Serial number"
+          required
+        />
+        <input
+          name="acquisition_date"
+          type="date"
+          value={form.acquisition_date}
+          onChange={updateAssetForm}
+          required
+        />
+        <input
+          name="acquisition_cost"
+          type="number"
+          min="0"
+          value={form.acquisition_cost}
+          onChange={updateAssetForm}
+          placeholder="Acquisition cost"
+          required
+        />
+        <select name="condition" value={form.condition} onChange={updateAssetForm}>
+          {["Excellent", "Good", "Fair", "Needs Repair"].map((condition) => (
+            <option key={condition}>{condition}</option>
+          ))}
+        </select>
+        <input
+          name="location"
+          value={form.location}
+          onChange={updateAssetForm}
+          placeholder="Location"
+          required
+        />
+        <input
+          name="department"
+          value={form.department}
+          onChange={updateAssetForm}
+          placeholder="Department optional"
+        />
+        <label className="checkbox-field">
+          <input
+            name="shared_bookable"
+            type="checkbox"
+            checked={form.shared_bookable}
+            onChange={updateAssetForm}
+          />
+          Shared/bookable
+        </label>
+      </section>
+
+      <div className="asset-table">
+        <div className="asset-row asset-head">
+          <span>Tag</span>
+          <span>Name</span>
+          <span>Category</span>
+          <span>Status</span>
+          <span>Location</span>
+          <span>History</span>
+        </div>
+        {visibleAssets.map((asset) => (
+          <article className="asset-row" key={asset.tag}>
+            <span>{asset.tag}</span>
+            <span>
+              {asset.name}
+              {asset.shared_bookable && <small>Bookable</small>}
+            </span>
+            <span>{asset.category}</span>
+            <span>
+              <strong className={statusClassName(asset.status)}>{asset.status}</strong>
+            </span>
+            <span>{asset.location}</span>
+            <span>{asset.history?.[0]?.detail ?? "No history yet"}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function uniqueValues(values) {
+  return [...new Set(values)].sort();
+}
+
+function statusClassName(status) {
+  if (status === "Available") {
+    return "status-pill active";
+  }
+  if (status === "Under Maintenance") {
+    return "status-pill warning";
+  }
+  return "status-pill";
 }
 
 function OrganizationSetup({ isAdmin }) {

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.routers import auth, dashboard, organization
+from backend.app.routers import assets, auth, dashboard, organization
 
 app = FastAPI(
     title="AssetFlow API",
@@ -18,6 +18,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(
     organization.router,
