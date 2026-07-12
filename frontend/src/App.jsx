@@ -219,9 +219,13 @@ function AppShell({ session, onLogout }) {
           <OrganizationSetup isAdmin={isAdmin} />
         )}
         {activeView === "Assets" && <AssetDirectory />}
+        {activeView === "Allocation & Transfer" && <AllocationTransfer />}
+        {activeView === "Resource Booking" && <ResourceBooking />}
         {activeView !== "Dashboard" &&
           activeView !== "Organization Setup" &&
-          activeView !== "Assets" && (
+          activeView !== "Assets" &&
+          activeView !== "Allocation & Transfer" &&
+          activeView !== "Resource Booking" && (
           <EmptyModule title={activeView} />
         )}
       </section>
@@ -303,6 +307,349 @@ function DashboardHome() {
       </section>
     </>
   );
+}
+
+function AllocationTransfer() {
+  const [workspace, setWorkspace] = useState(null);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    asset_tag: "AF-0012",
+    holder: "Raj Mehta",
+    holder_type: "Employee",
+    department: "Engineering",
+    expected_return_date: "2026-07-30",
+    reason: "Needs asset for upcoming client demo",
+  });
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadAllocations() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/allocations`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load allocations");
+        }
+        if (!ignore) {
+          setWorkspace(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadAllocations();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function allocateAsset() {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/allocations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_tag: form.asset_tag,
+          holder: form.holder,
+          holder_type: form.holder_type,
+          department: form.department,
+          expected_return_date: form.expected_return_date || null,
+        }),
+      });
+      const data = await response.json();
+
+      if (response.status === 409) {
+        setMessage(
+          `${data.detail.message} Currently held by ${data.detail.current_holder}.`,
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to allocate asset");
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        allocations: [...(current?.allocations ?? []), data],
+      }));
+      setMessage(`${data.asset_tag} allocated to ${data.holder}.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function requestTransfer() {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/allocations/transfer-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_tag: form.asset_tag,
+          to_holder: form.holder,
+          reason: form.reason,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to request transfer");
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        transfer_requests: [...(current?.transfer_requests ?? []), data],
+      }));
+      setMessage(`Transfer request created for ${data.asset_tag}.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  return (
+    <section className="allocation-module">
+      <div className="conflict-panel">
+        <label>
+          Asset
+          <input name="asset_tag" value={form.asset_tag} onChange={updateField} />
+        </label>
+        <div className="conflict-alert">
+          Already allocated to Priya Shah (Engineering). Direct re-allocation is blocked.
+        </div>
+      </div>
+
+      <section className="transfer-card" aria-label="Transfer request">
+        <label>
+          From
+          <input value="Priya Shah" readOnly />
+        </label>
+        <label>
+          To
+          <input name="holder" value={form.holder} onChange={updateField} />
+        </label>
+        <label>
+          Department
+          <input name="department" value={form.department} onChange={updateField} />
+        </label>
+        <label>
+          Expected return
+          <input
+            name="expected_return_date"
+            type="date"
+            value={form.expected_return_date}
+            onChange={updateField}
+          />
+        </label>
+        <label className="wide-field">
+          Reason
+          <textarea name="reason" value={form.reason} onChange={updateField} />
+        </label>
+        <div className="button-row">
+          <button type="button" onClick={allocateAsset}>
+            Try Allocate
+          </button>
+          <button type="button" onClick={requestTransfer}>
+            Submit Request
+          </button>
+        </div>
+      </section>
+
+      {message && <p className="inline-message">{message}</p>}
+
+      <section className="split-lists">
+        <div>
+          <h2>Allocation History</h2>
+          <div className="mini-list">
+            {(workspace?.allocations ?? []).map((allocation) => (
+              <article key={allocation.id}>
+                <strong>{allocation.asset_tag}</strong>
+                <span>
+                  {allocation.asset_name} allocated to {allocation.holder}
+                </span>
+                <small>{allocation.status}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2>Transfer Requests</h2>
+          <div className="mini-list">
+            {(workspace?.transfer_requests ?? []).map((request) => (
+              <article key={request.id}>
+                <strong>{request.asset_tag}</strong>
+                <span>
+                  {request.from_holder} to {request.to_holder}
+                </span>
+                <small>{request.status}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function ResourceBooking() {
+  const [workspace, setWorkspace] = useState(null);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    resource_name: "Conference Room B2",
+    booked_by: "Raj Mehta",
+    start_time: "2026-07-12T09:30",
+    end_time: "2026-07-12T10:30",
+    note: "Planning session",
+  });
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadBookings() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/bookings`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load bookings");
+        }
+        if (!ignore) {
+          setWorkspace(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadBookings();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function updateBooking(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function bookSlot() {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/bookings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+
+      if (response.status === 409) {
+        setMessage(
+          `${data.detail.message}: ${formatTime(data.detail.conflicting_booking.start_time)} to ${formatTime(data.detail.conflicting_booking.end_time)} is unavailable.`,
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to book resource");
+      }
+
+      setWorkspace((current) => ({
+        ...current,
+        bookings: [...(current?.bookings ?? []), data],
+      }));
+      setMessage(`Booking confirmed for ${data.resource_name}.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  const bookings = workspace?.bookings ?? [];
+
+  return (
+    <section className="booking-module">
+      <div className="booking-form">
+        <label>
+          Resource
+          <select name="resource_name" value={form.resource_name} onChange={updateBooking}>
+            {(workspace?.resources ?? ["Conference Room B2"]).map((resource) => (
+              <option key={resource}>{resource}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Booked by
+          <input name="booked_by" value={form.booked_by} onChange={updateBooking} />
+        </label>
+        <label>
+          Start
+          <input
+            name="start_time"
+            type="datetime-local"
+            value={form.start_time}
+            onChange={updateBooking}
+          />
+        </label>
+        <label>
+          End
+          <input
+            name="end_time"
+            type="datetime-local"
+            value={form.end_time}
+            onChange={updateBooking}
+          />
+        </label>
+        <label className="wide-field">
+          Note
+          <input name="note" value={form.note} onChange={updateBooking} />
+        </label>
+        <button type="button" onClick={bookSlot}>
+          Book a Slot
+        </button>
+      </div>
+
+      {message && <p className="inline-message">{message}</p>}
+
+      <section className="timeline" aria-label="Resource bookings">
+        {bookings.map((booking) => (
+          <article
+            className={booking.status === "Cancelled" ? "time-block cancelled" : "time-block"}
+            key={booking.id}
+          >
+            <span>
+              {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+            </span>
+            <strong>{booking.resource_name}</strong>
+            <small>
+              {booking.status} by {booking.booked_by}
+            </small>
+          </article>
+        ))}
+        <div className="blocked-slot">
+          Requested 9:30 to 10:30 conflicts with the existing room booking.
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function formatTime(value) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function AssetDirectory() {
