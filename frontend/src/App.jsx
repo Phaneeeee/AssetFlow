@@ -74,7 +74,7 @@ function App() {
   }
 
   if (session) {
-    return <DashboardShell session={session} onLogout={() => setSession(null)} />;
+    return <AppShell session={session} onLogout={() => setSession(null)} />;
   }
 
   return (
@@ -175,7 +175,58 @@ function App() {
   );
 }
 
-function DashboardShell({ session, onLogout }) {
+function AppShell({ session, onLogout }) {
+  const [activeView, setActiveView] = useState("Dashboard");
+  const isAdmin = session.user.role === "Admin";
+
+  return (
+    <main className="app-frame">
+      <aside className="sidebar" aria-label="Main navigation">
+        <div className="sidebar-brand">AssetFlow</div>
+        <nav className="nav-list">
+          {navItems.map((item) => (
+            <button
+              className={item === activeView ? "nav-item active" : "nav-item"}
+              key={item}
+              onClick={() => setActiveView(item)}
+              type="button"
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <section className="workspace" aria-labelledby="workspace-title">
+        <header className="workspace-header">
+          <div>
+            <p className="screen-kicker">{activeView}</p>
+            <h1 id="workspace-title">
+              {activeView === "Dashboard" ? "Today's Overview" : activeView}
+            </h1>
+          </div>
+          <div className="user-chip">
+            <span>{session.user.name}</span>
+            <strong>{session.user.role}</strong>
+            <button type="button" onClick={onLogout}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {activeView === "Dashboard" && <DashboardHome />}
+        {activeView === "Organization Setup" && (
+          <OrganizationSetup isAdmin={isAdmin} />
+        )}
+        {activeView !== "Dashboard" && activeView !== "Organization Setup" && (
+          <EmptyModule title={activeView} />
+        )}
+      </section>
+    </main>
+  );
+}
+
+function DashboardHome() {
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState("");
 
@@ -212,71 +263,190 @@ function DashboardShell({ session, onLogout }) {
   const activity = dashboard?.recent_activity ?? [];
 
   return (
-    <main className="app-frame">
-      <aside className="sidebar" aria-label="Main navigation">
-        <div className="sidebar-brand">AssetFlow</div>
-        <nav className="nav-list">
-          {navItems.map((item) => (
-            <button
-              className={item === "Dashboard" ? "nav-item active" : "nav-item"}
-              key={item}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-      </aside>
+    <>
+      {error && <p className="form-error dashboard-error">{error}</p>}
 
-      <section className="workspace" aria-labelledby="dashboard-title">
-        <header className="workspace-header">
-          <div>
-            <p className="screen-kicker">Dashboard</p>
-            <h1 id="dashboard-title">Today's Overview</h1>
-          </div>
-          <div className="user-chip">
-            <span>{session.user.name}</span>
-            <strong>{session.user.role}</strong>
-            <button type="button" onClick={onLogout}>
-              Logout
-            </button>
-          </div>
-        </header>
+      <section className="kpi-grid" aria-label="Dashboard KPIs">
+        {kpis.map((card) => (
+          <article className="kpi-card" key={card.label}>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+          </article>
+        ))}
+      </section>
 
-        {error && <p className="form-error dashboard-error">{error}</p>}
+      <div className="alert-strip">
+        {dashboard
+          ? `${dashboard.overdue_returns} assets overdue for return - flagged for follow-up`
+          : "Loading overdue returns..."}
+      </div>
 
-        <section className="kpi-grid" aria-label="Dashboard KPIs">
-          {kpis.map((card) => (
-            <article className="kpi-card" key={card.label}>
-              <span>{card.label}</span>
-              <strong>{card.value}</strong>
+      <section className="quick-actions" aria-label="Quick actions">
+        <button type="button">+ Register Asset</button>
+        <button type="button">Book Resource</button>
+        <button type="button">Raise Request</button>
+      </section>
+
+      <section className="recent-activity" aria-labelledby="recent-activity-title">
+        <h2 id="recent-activity-title">Recent Activity</h2>
+        <div className="activity-list">
+          {activity.map((item) => (
+            <article className="activity-item" key={`${item.message}-${item.meta}`}>
+              <span>{item.message}</span>
+              <small>{item.meta}</small>
             </article>
           ))}
-        </section>
-
-        <div className="alert-strip">
-          {dashboard ? `${dashboard.overdue_returns} assets overdue for return - flagged for follow-up` : "Loading overdue returns..."}
         </div>
-
-        <section className="quick-actions" aria-label="Quick actions">
-          <button type="button">+ Register Asset</button>
-          <button type="button">Book Resource</button>
-          <button type="button">Raise Request</button>
-        </section>
-
-        <section className="recent-activity" aria-labelledby="recent-activity-title">
-          <h2 id="recent-activity-title">Recent Activity</h2>
-          <div className="activity-list">
-            {activity.map((item) => (
-              <article className="activity-item" key={`${item.message}-${item.meta}`}>
-                <span>{item.message}</span>
-                <small>{item.meta}</small>
-              </article>
-            ))}
-          </div>
-        </section>
       </section>
-    </main>
+    </>
+  );
+}
+
+function OrganizationSetup({ isAdmin }) {
+  const [activeTab, setActiveTab] = useState("Departments");
+  const [setup, setSetup] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSetup() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/organization/setup`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load organization setup");
+        }
+
+        if (!ignore) {
+          setSetup(data);
+        }
+      } catch (setupError) {
+        if (!ignore) {
+          setError(setupError.message);
+        }
+      }
+    }
+
+    loadSetup();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (!isAdmin) {
+    return (
+      <section className="empty-module">
+        <h2>Admin access required</h2>
+        <p>Only Admin users can manage departments, categories, and role assignments.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="setup-module">
+      <div className="setup-tabs" role="tablist" aria-label="Organization setup tabs">
+        {["Departments", "Categories", "Employees"].map((tab) => (
+          <button
+            className={tab === activeTab ? "setup-tab active" : "setup-tab"}
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            role="tab"
+            type="button"
+          >
+            {tab}
+          </button>
+        ))}
+        <button className="setup-add" type="button">
+          + Add
+        </button>
+      </div>
+
+      {error && <p className="form-error dashboard-error">{error}</p>}
+
+      {activeTab === "Departments" && (
+        <DataTable
+          columns={["Department", "Head", "Parent Dept", "Status"]}
+          rows={(setup?.departments ?? []).map((department) => [
+            department.name,
+            department.head ?? "-",
+            department.parent_department ?? "-",
+            department.status,
+          ])}
+          statusColumn={3}
+        />
+      )}
+
+      {activeTab === "Categories" && (
+        <DataTable
+          columns={["Category", "Optional Field", "Status"]}
+          rows={(setup?.categories ?? []).map((category) => [
+            category.name,
+            category.field ?? "-",
+            category.status,
+          ])}
+          statusColumn={2}
+        />
+      )}
+
+      {activeTab === "Employees" && (
+        <DataTable
+          columns={["Name", "Email", "Department", "Role", "Status"]}
+          rows={(setup?.employees ?? []).map((employee) => [
+            employee.name,
+            employee.email,
+            employee.department,
+            employee.role,
+            employee.status,
+          ])}
+          statusColumn={4}
+        />
+      )}
+
+      <p className="setup-note">
+        Editing a department here also drives picklists used by Assets and Allocation screens.
+      </p>
+    </section>
+  );
+}
+
+function DataTable({ columns, rows, statusColumn }) {
+  return (
+    <div className="data-table" role="table">
+      <div className="table-row table-head" role="row">
+        {columns.map((column) => (
+          <span key={column} role="columnheader">
+            {column}
+          </span>
+        ))}
+      </div>
+      {rows.map((row) => (
+        <div className="table-row" key={row.join("-")} role="row">
+          {row.map((cell, index) => (
+            <span key={`${cell}-${index}`} role="cell">
+              {index === statusColumn ? (
+                <strong className={cell === "Active" ? "status-pill active" : "status-pill"}>
+                  {cell}
+                </strong>
+              ) : (
+                cell
+              )}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyModule({ title }) {
+  return (
+    <section className="empty-module">
+      <h2>{title}</h2>
+      <p>This module will be built in a later feature slice.</p>
+    </section>
   );
 }
 
