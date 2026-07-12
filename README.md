@@ -2,13 +2,14 @@
 
 Enterprise Asset & Resource Management System.
 
-## First feature slice
+## Current scope
 
-This initial commit sets up the project foundation and the authentication shell:
+AssetFlow starts as an empty organization workspace:
 
 - FastAPI backend with health/auth endpoints
-- React frontend with login and employee-only signup screens
-- Dark ERP visual style based on the provided mockup
+- React frontend with Admin and Employee login entry points
+- First signup becomes the organization Admin; later signups become Employees
+- No seeded assets, employees, reports, bookings, notifications, or maintenance records
 - Role model prepared for Admin, Asset Manager, Department Head, and Employee workflows
 
 ## Run locally
@@ -19,6 +20,9 @@ Backend:
 python -m uvicorn main:app --reload
 ```
 
+Create the first account from the signup screen. That first account becomes the
+organization Admin.
+
 Frontend:
 
 ```bash
@@ -26,4 +30,3 @@ cd frontend
 npm install
 npm run dev
 ```
-

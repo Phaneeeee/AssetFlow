@@ -1,12 +1,8 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-const demoCredentials = {
-  email: "admin@assetflow.local",
-  password: "password123",
-};
+const ORGANIZATION_NAME_STORAGE_KEY = "assetflow.organizationName";
 
 const navItems = [
   "Dashboard",
@@ -20,13 +16,21 @@ const navItems = [
   "Notifications",
 ];
 
+function getStoredOrganizationName() {
+  return localStorage.getItem(ORGANIZATION_NAME_STORAGE_KEY) || "";
+}
+
 function App() {
   const [mode, setMode] = useState("login");
+  const [loginRole, setLoginRole] = useState("Admin");
+  const [organizationName, setOrganizationName] = useState(getStoredOrganizationName);
   const [form, setForm] = useState({
     name: "",
-    email: demoCredentials.email,
-    password: demoCredentials.password,
+    email: "",
+    password: "",
+    organizationName,
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [authState, setAuthState] = useState({
     loading: false,
     error: "",
@@ -62,7 +66,26 @@ function App() {
         throw new Error(data.detail || "Authentication failed");
       }
 
-      setSession({ user: data.user, token: data.token });
+      const roleMatchesLogin =
+        isSignup ||
+        (loginRole === "Admin" ? data.user.role === "Admin" : data.user.role !== "Admin");
+      if (!roleMatchesLogin) {
+        throw new Error(`Use the ${data.user.role === "Admin" ? "Admin" : "Employee"} login option for this account.`);
+      }
+
+      const nextOrganizationName =
+        form.organizationName.trim() || organizationName || "Organization";
+
+      if (isSignup && form.organizationName.trim()) {
+        localStorage.setItem(ORGANIZATION_NAME_STORAGE_KEY, form.organizationName.trim());
+        setOrganizationName(form.organizationName.trim());
+      }
+
+      setSession({
+        user: data.user,
+        token: data.token,
+        organizationName: nextOrganizationName,
+      });
       setAuthState({ loading: false, error: "", user: data.user });
     } catch (error) {
       setAuthState({
@@ -81,26 +104,60 @@ function App() {
     <main className="auth-page">
       <section className="auth-panel" aria-labelledby="auth-title">
         <header className="panel-title">
-          <h1 id="auth-title">AssetFlow - {isSignup ? "signup" : "login"}</h1>
+          <div className="brand-mark" aria-hidden="true">
+            AF
+          </div>
+          <div>
+            <h1 id="auth-title">AssetFlow</h1>
+            <p>
+              {isSignup
+                ? "Create the first organization account"
+                : `${loginRole} login`}
+            </p>
+          </div>
         </header>
 
-        <div className="brand-mark" aria-hidden="true">
-          AF
-        </div>
+        {!isSignup && (
+          <div className="login-role-tabs" aria-label="Choose login type">
+            {["Admin", "Employee"].map((role) => (
+              <button
+                className={role === loginRole ? "login-role-tab active" : "login-role-tab"}
+                key={role}
+                onClick={() => setLoginRole(role)}
+                type="button"
+              >
+                {role} Login
+              </button>
+            ))}
+          </div>
+        )}
 
         <form className="auth-form" onSubmit={submitAuth}>
           {isSignup && (
-            <label>
-              Name
-              <input
-                name="name"
-                value={form.name}
-                onChange={updateField}
-                placeholder="Priya Shah"
-                autoComplete="name"
-                required
-              />
-            </label>
+            <>
+              <label>
+                Organization name
+                <input
+                  name="organizationName"
+                  value={form.organizationName}
+                  onChange={updateField}
+                  placeholder="Organization name"
+                  autoComplete="organization"
+                  required
+                />
+              </label>
+              <label>
+                Name
+                <input
+                  name="name"
+                  value={form.name}
+                  onChange={updateField}
+                  placeholder="Full name"
+                  autoComplete="name"
+                  required
+                />
+              </label>
+            </>
           )}
 
           <label>
@@ -118,16 +175,26 @@ function App() {
 
           <label>
             Password
-            <input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={updateField}
-              placeholder="********"
-              autoComplete={isSignup ? "new-password" : "current-password"}
-              required
-              minLength={8}
-            />
+            <span className="password-field">
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={updateField}
+                placeholder="Enter your password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                required
+                minLength={8}
+              />
+              <button
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="password-toggle"
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </span>
           </label>
 
           {!isSignup && (
@@ -142,7 +209,13 @@ function App() {
             <div className="success-card">
               <strong>{authState.user.name}</strong>
               <span>{authState.user.role}</span>
-              {isSignup && <span>Signup created an Employee account.</span>}
+              {isSignup && (
+                <span>
+                  {authState.user.role === "Admin"
+                    ? "Organization admin account created."
+                    : "Employee account created."}
+                </span>
+              )}
             </div>
           )}
 
@@ -162,12 +235,19 @@ function App() {
             type="button"
             onClick={() => {
               setMode(isSignup ? "login" : "signup");
+              setForm({
+                name: "",
+                email: "",
+                password: "",
+                organizationName: organizationName || "",
+              });
+              setShowPassword(false);
               setAuthState({ loading: false, error: "", user: null });
             }}
           >
             {isSignup
               ? "Back to Login"
-              : "Sign up creates an employee account admin roles assigned later"}
+              : "Create Organization Account"}
           </button>
         </footer>
       </section>
@@ -178,11 +258,15 @@ function App() {
 function AppShell({ session, onLogout }) {
   const [activeView, setActiveView] = useState("Dashboard");
   const isAdmin = session.user.role === "Admin";
+  const organizationName = session.organizationName || "Organization";
 
   return (
     <main className="app-frame">
       <aside className="sidebar" aria-label="Main navigation">
-        <div className="sidebar-brand">AssetFlow</div>
+        <div className="sidebar-brand">
+          <strong>{organizationName}</strong>
+          <span>AssetFlow</span>
+        </div>
         <nav className="nav-list">
           {navItems.map((item) => (
             <button
@@ -200,6 +284,7 @@ function AppShell({ session, onLogout }) {
       <section className="workspace" aria-labelledby="workspace-title">
         <header className="workspace-header">
           <div>
+            <p className="organization-kicker">{organizationName}</p>
             <p className="screen-kicker">{activeView}</p>
             <h1 id="workspace-title">
               {activeView === "Dashboard" ? "Today's Overview" : activeView}
@@ -214,7 +299,7 @@ function AppShell({ session, onLogout }) {
           </div>
         </header>
 
-        {activeView === "Dashboard" && <DashboardHome />}
+        {activeView === "Dashboard" && <DashboardHome onNavigate={setActiveView} />}
         {activeView === "Organization Setup" && (
           <OrganizationSetup isAdmin={isAdmin} />
         )}
@@ -241,7 +326,7 @@ function AppShell({ session, onLogout }) {
   );
 }
 
-function DashboardHome() {
+function DashboardHome({ onNavigate }) {
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState("");
 
@@ -277,13 +362,24 @@ function DashboardHome() {
   const kpis = dashboard?.kpis ?? [];
   const activity = dashboard?.recent_activity ?? [];
 
+  function getKpiTone(label) {
+    const normalizedLabel = label.toLowerCase();
+    if (normalizedLabel.includes("allocated")) return "allocated";
+    if (normalizedLabel.includes("available")) return "available";
+    if (normalizedLabel.includes("upcoming")) return "returns";
+    if (normalizedLabel.includes("pending")) return "transfers";
+    if (normalizedLabel.includes("maintenance")) return "maintenance";
+    if (normalizedLabel.includes("booking")) return "bookings";
+    return "default";
+  }
+
   return (
     <>
       {error && <p className="form-error dashboard-error">{error}</p>}
 
       <section className="kpi-grid" aria-label="Dashboard KPIs">
         {kpis.map((card) => (
-          <article className="kpi-card" key={card.label}>
+          <article className={`kpi-card kpi-card-${getKpiTone(card.label)}`} key={card.label}>
             <span>{card.label}</span>
             <strong>{card.value}</strong>
           </article>
@@ -297,20 +393,30 @@ function DashboardHome() {
       </div>
 
       <section className="quick-actions" aria-label="Quick actions">
-        <button type="button">+ Register Asset</button>
-        <button type="button">Book Resource</button>
-        <button type="button">Raise Request</button>
+        <button type="button" onClick={() => onNavigate("Assets")}>
+          + Register Asset
+        </button>
+        <button type="button" onClick={() => onNavigate("Resource Booking")}>
+          Book Resource
+        </button>
+        <button type="button" onClick={() => onNavigate("Maintenance")}>
+          Raise Request
+        </button>
       </section>
 
       <section className="recent-activity" aria-labelledby="recent-activity-title">
         <h2 id="recent-activity-title">Recent Activity</h2>
         <div className="activity-list">
-          {activity.map((item) => (
-            <article className="activity-item" key={`${item.message}-${item.meta}`}>
-              <span>{item.message}</span>
-              <small>{item.meta}</small>
-            </article>
-          ))}
+          {activity.length > 0 ? (
+            activity.map((item) => (
+              <article className="activity-item" key={`${item.message}-${item.meta}`}>
+                <span>{item.message}</span>
+                <small>{item.meta}</small>
+              </article>
+            ))
+          ) : (
+            <EmptyState message="No activity yet." />
+          )}
         </div>
       </section>
     </>
@@ -321,11 +427,11 @@ function MaintenanceManagement() {
   const [workspace, setWorkspace] = useState(null);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
-    asset_tag: "AF-0062",
-    asset_name: "Projector",
-    issue: "Bulb flickers during meetings",
+    asset_tag: "",
+    asset_name: "",
+    issue: "",
     priority: "High",
-    raised_by: "Priya Shah",
+    raised_by: "",
   });
 
   useEffect(() => {
@@ -390,7 +496,7 @@ function MaintenanceManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status,
-          technician: status === "Technician Assigned" ? "Vikram" : request.technician,
+          technician: request.technician,
         }),
       });
       const data = await response.json();
@@ -418,15 +524,15 @@ function MaintenanceManagement() {
   return (
     <section className="maintenance-module">
       <div className="maintenance-form">
-        <input name="asset_tag" value={form.asset_tag} onChange={updateForm} />
-        <input name="asset_name" value={form.asset_name} onChange={updateForm} />
+        <input name="asset_tag" value={form.asset_tag} onChange={updateForm} placeholder="Asset tag" />
+        <input name="asset_name" value={form.asset_name} onChange={updateForm} placeholder="Asset name" />
         <select name="priority" value={form.priority} onChange={updateForm}>
           {["Low", "Medium", "High", "Critical"].map((priority) => (
             <option key={priority}>{priority}</option>
           ))}
         </select>
-        <input name="raised_by" value={form.raised_by} onChange={updateForm} />
-        <input name="issue" value={form.issue} onChange={updateForm} />
+        <input name="raised_by" value={form.raised_by} onChange={updateForm} placeholder="Raised by" />
+        <input name="issue" value={form.issue} onChange={updateForm} placeholder="Issue summary" />
         <button type="button" onClick={raiseMaintenanceRequest}>
           Raise Request
         </button>
@@ -440,9 +546,12 @@ function MaintenanceManagement() {
           .map((status) => (
             <div className="kanban-column" key={status}>
               <h2>{status}</h2>
-              {(workspace?.requests ?? [])
-                .filter((request) => request.status === status)
-                .map((request) => (
+              {(() => {
+                const requests = (workspace?.requests ?? []).filter(
+                  (request) => request.status === status,
+                );
+                return requests.length > 0 ? (
+                  requests.map((request) => (
                   <article className="kanban-card" key={request.id}>
                     <strong>{request.asset_tag}</strong>
                     <span>{request.asset_name}</span>
@@ -457,7 +566,11 @@ function MaintenanceManagement() {
                       </button>
                     )}
                   </article>
-                ))}
+                  ))
+                ) : (
+                  <EmptyState message="No requests." />
+                );
+              })()}
             </div>
           ))}
       </section>
@@ -482,10 +595,10 @@ function AssetAudit() {
   const [workspace, setWorkspace] = useState(null);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
-    name: "Q4 Audit",
-    scope: "Facilities",
-    date_range: "1-15 Oct",
-    auditors: "Rahul Nair, Sana Iqbal",
+    name: "",
+    scope: "",
+    date_range: "",
+    auditors: "",
   });
 
   useEffect(() => {
@@ -570,10 +683,10 @@ function AssetAudit() {
   return (
     <section className="audit-module">
       <div className="audit-form">
-        <input name="name" value={form.name} onChange={updateAuditForm} />
-        <input name="scope" value={form.scope} onChange={updateAuditForm} />
-        <input name="date_range" value={form.date_range} onChange={updateAuditForm} />
-        <input name="auditors" value={form.auditors} onChange={updateAuditForm} />
+        <input name="name" value={form.name} onChange={updateAuditForm} placeholder="Cycle name" />
+        <input name="scope" value={form.scope} onChange={updateAuditForm} placeholder="Scope" />
+        <input name="date_range" value={form.date_range} onChange={updateAuditForm} placeholder="Date range" />
+        <input name="auditors" value={form.auditors} onChange={updateAuditForm} placeholder="Auditors" />
         <button type="button" onClick={createAuditCycle}>
           Create Audit Cycle
         </button>
@@ -581,7 +694,7 @@ function AssetAudit() {
 
       {message && <p className="inline-message">{message}</p>}
 
-      {activeCycle && (
+      {activeCycle ? (
         <>
           <section className="audit-summary">
             <strong>
@@ -622,6 +735,8 @@ function AssetAudit() {
             Close Audit Cycle
           </button>
         </>
+      ) : (
+        <EmptyState message="No audit cycles yet." />
       )}
     </section>
   );
@@ -697,32 +812,34 @@ function BarChart({ title, points }) {
     <article className="report-card">
       <h2>{title}</h2>
       <div className="bar-chart">
-        {points.map((point) => (
+        {points.length > 0 ? points.map((point) => (
           <div className="bar-item" key={point.label}>
             <span style={{ height: `${Math.max((point.value / max) * 100, 8)}%` }} />
             <small>{point.label}</small>
           </div>
-        ))}
+        )) : <EmptyState message="No chart data yet." />}
       </div>
     </article>
   );
 }
 
 function LineChart({ title, points }) {
+  const max = Math.max(...points.map((point) => point.value), 1);
+
   return (
     <article className="report-card">
       <h2>{title}</h2>
       <div className="line-chart">
-        {points.map((point, index) => (
+        {points.length > 0 ? points.map((point, index) => (
           <span
             key={point.label}
             style={{
               left: `${(index / Math.max(points.length - 1, 1)) * 100}%`,
-              bottom: `${Math.min(point.value * 6, 86)}%`,
+              bottom: `${8 + (point.value / max) * 84}%`,
             }}
             title={`${point.label}: ${point.value}`}
           />
-        ))}
+        )) : <EmptyState message="No chart data yet." />}
       </div>
     </article>
   );
@@ -735,7 +852,7 @@ function Heatmap({ title, points }) {
     <article className="report-card">
       <h2>{title}</h2>
       <div className="heatmap">
-        {points.map((point) => (
+        {points.length > 0 ? points.map((point) => (
           <div
             key={point.label}
             style={{ opacity: 0.25 + (point.value / max) * 0.75 }}
@@ -743,7 +860,7 @@ function Heatmap({ title, points }) {
             <strong>{point.label}</strong>
             <span>{point.value}</span>
           </div>
-        ))}
+        )) : <EmptyState message="No booking data yet." />}
       </div>
     </article>
   );
@@ -753,12 +870,12 @@ function InsightList({ title, items }) {
   return (
     <article className="insight-card">
       <h2>{title}</h2>
-      {items.map((item) => (
+      {items.length > 0 ? items.map((item) => (
         <p key={item.title}>
           <strong>{item.title}</strong>
           <span>{item.detail}</span>
         </p>
-      ))}
+      )) : <EmptyState message="No insights yet." />}
     </article>
   );
 }
@@ -826,26 +943,30 @@ function NotificationsLog() {
       </div>
 
       <div className="notification-list">
-        {notifications.map((item) => (
+        {notifications.length > 0 ? notifications.map((item) => (
           <article className="notification-row" key={item.id}>
             <span />
             <strong>{item.message}</strong>
             <small>{item.age}</small>
           </article>
-        ))}
+        )) : <EmptyState message="No notifications yet." />}
       </div>
 
       <section className="activity-log-panel">
         <h2>Activity Log</h2>
-        {(workspace?.activity_log ?? []).map((entry) => (
-          <article key={entry.id}>
-            <strong>{entry.actor}</strong>
-            <span>
-              {entry.action} - {entry.target}
-            </span>
-            <small>{entry.timestamp}</small>
-          </article>
-        ))}
+        {(workspace?.activity_log ?? []).length > 0 ? (
+          (workspace?.activity_log ?? []).map((entry) => (
+            <article key={entry.id}>
+              <strong>{entry.actor}</strong>
+              <span>
+                {entry.action} - {entry.target}
+              </span>
+              <small>{entry.timestamp}</small>
+            </article>
+          ))
+        ) : (
+          <EmptyState message="No activity log entries yet." />
+        )}
       </section>
     </section>
   );
@@ -855,12 +976,12 @@ function AllocationTransfer() {
   const [workspace, setWorkspace] = useState(null);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
-    asset_tag: "AF-0012",
-    holder: "Raj Mehta",
+    asset_tag: "",
+    holder: "",
     holder_type: "Employee",
-    department: "Engineering",
-    expected_return_date: "2026-07-30",
-    reason: "Needs asset for upcoming client demo",
+    department: "",
+    expected_return_date: "",
+    reason: "",
   });
 
   useEffect(() => {
@@ -965,25 +1086,25 @@ function AllocationTransfer() {
       <div className="conflict-panel">
         <label>
           Asset
-          <input name="asset_tag" value={form.asset_tag} onChange={updateField} />
+          <input name="asset_tag" value={form.asset_tag} onChange={updateField} placeholder="Asset tag" />
         </label>
         <div className="conflict-alert">
-          Already allocated to Priya Shah (Engineering). Direct re-allocation is blocked.
+          Allocation conflicts will appear here after an asset is selected.
         </div>
       </div>
 
       <section className="transfer-card" aria-label="Transfer request">
         <label>
           From
-          <input value="Priya Shah" readOnly />
+          <input value="Current holder appears after allocation" readOnly />
         </label>
         <label>
           To
-          <input name="holder" value={form.holder} onChange={updateField} />
+          <input name="holder" value={form.holder} onChange={updateField} placeholder="Employee or holder" />
         </label>
         <label>
           Department
-          <input name="department" value={form.department} onChange={updateField} />
+          <input name="department" value={form.department} onChange={updateField} placeholder="Department" />
         </label>
         <label>
           Expected return
@@ -996,7 +1117,7 @@ function AllocationTransfer() {
         </label>
         <label className="wide-field">
           Reason
-          <textarea name="reason" value={form.reason} onChange={updateField} />
+          <textarea name="reason" value={form.reason} onChange={updateField} placeholder="Reason for allocation or transfer" />
         </label>
         <div className="button-row">
           <button type="button" onClick={allocateAsset}>
@@ -1014,29 +1135,37 @@ function AllocationTransfer() {
         <div>
           <h2>Allocation History</h2>
           <div className="mini-list">
-            {(workspace?.allocations ?? []).map((allocation) => (
-              <article key={allocation.id}>
-                <strong>{allocation.asset_tag}</strong>
-                <span>
-                  {allocation.asset_name} allocated to {allocation.holder}
-                </span>
-                <small>{allocation.status}</small>
-              </article>
-            ))}
+            {(workspace?.allocations ?? []).length > 0 ? (
+              (workspace?.allocations ?? []).map((allocation) => (
+                <article key={allocation.id}>
+                  <strong>{allocation.asset_tag}</strong>
+                  <span>
+                    {allocation.asset_name} allocated to {allocation.holder}
+                  </span>
+                  <small>{allocation.status}</small>
+                </article>
+              ))
+            ) : (
+              <EmptyState message="No allocations yet." />
+            )}
           </div>
         </div>
         <div>
           <h2>Transfer Requests</h2>
           <div className="mini-list">
-            {(workspace?.transfer_requests ?? []).map((request) => (
-              <article key={request.id}>
-                <strong>{request.asset_tag}</strong>
-                <span>
-                  {request.from_holder} to {request.to_holder}
-                </span>
-                <small>{request.status}</small>
-              </article>
-            ))}
+            {(workspace?.transfer_requests ?? []).length > 0 ? (
+              (workspace?.transfer_requests ?? []).map((request) => (
+                <article key={request.id}>
+                  <strong>{request.asset_tag}</strong>
+                  <span>
+                    {request.from_holder} to {request.to_holder}
+                  </span>
+                  <small>{request.status}</small>
+                </article>
+              ))
+            ) : (
+              <EmptyState message="No transfer requests yet." />
+            )}
           </div>
         </div>
       </section>
@@ -1048,11 +1177,11 @@ function ResourceBooking() {
   const [workspace, setWorkspace] = useState(null);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
-    resource_name: "Conference Room B2",
-    booked_by: "Raj Mehta",
-    start_time: "2026-07-12T09:30",
-    end_time: "2026-07-12T10:30",
-    note: "Planning session",
+    resource_name: "",
+    booked_by: "",
+    start_time: "",
+    end_time: "",
+    note: "",
   });
 
   useEffect(() => {
@@ -1125,15 +1254,25 @@ function ResourceBooking() {
       <div className="booking-form">
         <label>
           Resource
-          <select name="resource_name" value={form.resource_name} onChange={updateBooking}>
-            {(workspace?.resources ?? ["Conference Room B2"]).map((resource) => (
-              <option key={resource}>{resource}</option>
-            ))}
-          </select>
+          {(workspace?.resources ?? []).length > 0 ? (
+            <select name="resource_name" value={form.resource_name} onChange={updateBooking}>
+              <option value="">Select resource</option>
+              {(workspace?.resources ?? []).map((resource) => (
+                <option key={resource}>{resource}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              name="resource_name"
+              value={form.resource_name}
+              onChange={updateBooking}
+              placeholder="Resource name"
+            />
+          )}
         </label>
         <label>
           Booked by
-          <input name="booked_by" value={form.booked_by} onChange={updateBooking} />
+          <input name="booked_by" value={form.booked_by} onChange={updateBooking} placeholder="Booked by" />
         </label>
         <label>
           Start
@@ -1155,7 +1294,7 @@ function ResourceBooking() {
         </label>
         <label className="wide-field">
           Note
-          <input name="note" value={form.note} onChange={updateBooking} />
+          <input name="note" value={form.note} onChange={updateBooking} placeholder="Optional note" />
         </label>
         <button type="button" onClick={bookSlot}>
           Book a Slot
@@ -1165,23 +1304,24 @@ function ResourceBooking() {
       {message && <p className="inline-message">{message}</p>}
 
       <section className="timeline" aria-label="Resource bookings">
-        {bookings.map((booking) => (
-          <article
-            className={booking.status === "Cancelled" ? "time-block cancelled" : "time-block"}
-            key={booking.id}
-          >
-            <span>
-              {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-            </span>
-            <strong>{booking.resource_name}</strong>
-            <small>
-              {booking.status} by {booking.booked_by}
-            </small>
-          </article>
-        ))}
-        <div className="blocked-slot">
-          Requested 9:30 to 10:30 conflicts with the existing room booking.
-        </div>
+        {bookings.length > 0 ? (
+          bookings.map((booking) => (
+            <article
+              className={booking.status === "Cancelled" ? "time-block cancelled" : "time-block"}
+              key={booking.id}
+            >
+              <span>
+                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+              </span>
+              <strong>{booking.resource_name}</strong>
+              <small>
+                {booking.status} by {booking.booked_by}
+              </small>
+            </article>
+          ))
+        ) : (
+          <EmptyState message="No resource bookings yet." />
+        )}
       </section>
     </section>
   );
@@ -1205,10 +1345,10 @@ function AssetDirectory() {
   });
   const [form, setForm] = useState({
     name: "",
-    category: "Electronics",
+    category: "",
     serial_number: "",
-    acquisition_date: "2026-07-12",
-    acquisition_cost: "0",
+    acquisition_date: "",
+    acquisition_cost: "",
     condition: "Good",
     location: "",
     department: "",
@@ -1306,7 +1446,7 @@ function AssetDirectory() {
         ...current,
         name: "",
         serial_number: "",
-        acquisition_cost: "0",
+        acquisition_cost: "",
         location: "",
         department: "",
         shared_bookable: false,
@@ -1360,6 +1500,7 @@ function AssetDirectory() {
           required
         />
         <select name="category" value={form.category} onChange={updateAssetForm}>
+          <option value="">Select category</option>
           {["Electronics", "Furniture", "Vehicles"].map((category) => (
             <option key={category}>{category}</option>
           ))}
@@ -1425,21 +1566,25 @@ function AssetDirectory() {
           <span>Location</span>
           <span>History</span>
         </div>
-        {visibleAssets.map((asset) => (
-          <article className="asset-row" key={asset.tag}>
-            <span>{asset.tag}</span>
-            <span>
-              {asset.name}
-              {asset.shared_bookable && <small>Bookable</small>}
-            </span>
-            <span>{asset.category}</span>
-            <span>
-              <strong className={statusClassName(asset.status)}>{asset.status}</strong>
-            </span>
-            <span>{asset.location}</span>
-            <span>{asset.history?.[0]?.detail ?? "No history yet"}</span>
-          </article>
-        ))}
+        {visibleAssets.length > 0 ? (
+          visibleAssets.map((asset) => (
+            <article className="asset-row" key={asset.tag}>
+              <span>{asset.tag}</span>
+              <span>
+                {asset.name}
+                {asset.shared_bookable && <small>Bookable</small>}
+              </span>
+              <span>{asset.category}</span>
+              <span>
+                <strong className={statusClassName(asset.status)}>{asset.status}</strong>
+              </span>
+              <span>{asset.location}</span>
+              <span>{asset.history?.[0]?.detail ?? "No history yet"}</span>
+            </article>
+          ))
+        ) : (
+          <EmptyState message="No assets registered yet." />
+        )}
       </div>
     </section>
   );
@@ -1579,23 +1724,31 @@ function DataTable({ columns, rows, statusColumn }) {
           </span>
         ))}
       </div>
-      {rows.map((row) => (
-        <div className="table-row" key={row.join("-")} role="row">
-          {row.map((cell, index) => (
-            <span key={`${cell}-${index}`} role="cell">
-              {index === statusColumn ? (
-                <strong className={cell === "Active" ? "status-pill active" : "status-pill"}>
-                  {cell}
-                </strong>
-              ) : (
-                cell
-              )}
-            </span>
-          ))}
-        </div>
-      ))}
+      {rows.length > 0 ? (
+        rows.map((row) => (
+          <div className="table-row" key={row.join("-")} role="row">
+            {row.map((cell, index) => (
+              <span key={`${cell}-${index}`} role="cell">
+                {index === statusColumn ? (
+                  <strong className={cell === "Active" ? "status-pill active" : "status-pill"}>
+                    {cell}
+                  </strong>
+                ) : (
+                  cell
+                )}
+              </span>
+            ))}
+          </div>
+        ))
+      ) : (
+        <EmptyState message="No records yet." />
+      )}
     </div>
   );
+}
+
+function EmptyState({ message }) {
+  return <p className="empty-state">{message}</p>;
 }
 
 function EmptyModule({ title }) {

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from backend.app.models.asset import (
+from app.models.asset import (
     Asset,
     AssetCondition,
     AssetCreateRequest,
@@ -11,68 +11,7 @@ from backend.app.models.asset import (
 
 router = APIRouter()
 
-ASSETS = [
-    Asset(
-        id=1,
-        tag="AF-0012",
-        name="Dell Laptop",
-        category="Electronics",
-        serial_number="DL-9X114",
-        acquisition_date="2025-04-12",
-        acquisition_cost=98000,
-        condition=AssetCondition.GOOD,
-        location="Bengaluru",
-        department="Engineering",
-        status=AssetStatus.ALLOCATED,
-        history=[
-            AssetHistoryItem(
-                date="2026-03-12",
-                event="Allocated",
-                detail="Assigned to Priya Shah - Engineering",
-            )
-        ],
-    ),
-    Asset(
-        id=2,
-        tag="AF-0062",
-        name="Projector",
-        category="Electronics",
-        serial_number="PRJ-2219",
-        acquisition_date="2024-11-02",
-        acquisition_cost=43000,
-        condition=AssetCondition.NEEDS_REPAIR,
-        location="HQ Floor 2",
-        department="Facilities",
-        status=AssetStatus.UNDER_MAINTENANCE,
-        shared_bookable=True,
-        history=[
-            AssetHistoryItem(
-                date="2026-07-08",
-                event="Maintenance",
-                detail="Optical alignment issue approved for repair",
-            )
-        ],
-    ),
-    Asset(
-        id=3,
-        tag="AF-0201",
-        name="Office Chair",
-        category="Furniture",
-        serial_number="CHR-8810",
-        acquisition_date="2025-08-18",
-        acquisition_cost=6500,
-        condition=AssetCondition.GOOD,
-        location="Warehouse",
-        status=AssetStatus.AVAILABLE,
-        history=[
-            AssetHistoryItem(
-                date="2026-01-04",
-                event="Returned",
-                detail="Returned by Arjun Mehta - condition good",
-            )
-        ],
-    ),
-]
+ASSETS: list[Asset] = []
 
 
 @router.get("", response_model=AssetDirectory)

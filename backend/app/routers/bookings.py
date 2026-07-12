@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from backend.app.models.booking import (
+from app.models.booking import (
     BookingConflict,
     BookingCreateRequest,
     BookingStatus,
@@ -10,19 +10,8 @@ from backend.app.models.booking import (
 
 router = APIRouter()
 
-RESOURCES = ["Conference Room B2", "Pool Vehicle 01", "Projector AF-0062"]
-
-BOOKINGS = [
-    ResourceBooking(
-        id=1,
-        resource_name="Conference Room B2",
-        booked_by="Procurement Team",
-        start_time="2026-07-12T09:00:00",
-        end_time="2026-07-12T10:00:00",
-        status=BookingStatus.UPCOMING,
-        note="Weekly vendor review",
-    )
-]
+RESOURCES: list[str] = []
+BOOKINGS: list[ResourceBooking] = []
 
 
 @router.get("", response_model=BookingWorkspace)

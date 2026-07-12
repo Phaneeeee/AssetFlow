@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
-from backend.app.models.user import UserRole, UserStatus
+from app.models.user import UserRole, UserStatus
 
 
 class Department(BaseModel):

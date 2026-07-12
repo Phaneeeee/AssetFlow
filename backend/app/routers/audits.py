@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from backend.app.models.audit import (
-    AuditAsset,
+from app.models.audit import (
     AuditCreateRequest,
     AuditCycle,
     AuditStatus,
@@ -12,36 +11,7 @@ from backend.app.models.audit import (
 
 router = APIRouter()
 
-CYCLES = [
-    AuditCycle(
-        id=1,
-        name="Q3 Audit",
-        scope="Engineering Dept",
-        date_range="1-15 Jul",
-        auditors=["A. Rao", "S. Iqbal"],
-        status=AuditStatus.OPEN,
-        assets=[
-            AuditAsset(
-                asset_tag="AF-003",
-                asset_name="Dell Laptop",
-                expected_location="Desk #12",
-                verification=VerificationStatus.VERIFIED,
-            ),
-            AuditAsset(
-                asset_tag="AF-021",
-                asset_name="Office Chair",
-                expected_location="Desk #09",
-                verification=VerificationStatus.MISSING,
-            ),
-            AuditAsset(
-                asset_tag="AF-093",
-                asset_name="Monitor",
-                expected_location="Desk #15",
-                verification=VerificationStatus.DAMAGED,
-            ),
-        ],
-    )
-]
+CYCLES: list[AuditCycle] = []
 
 
 @router.get("", response_model=AuditWorkspace)
@@ -103,4 +73,3 @@ def _discrepancy_count() -> int:
         for asset in cycle.assets
         if asset.verification != VerificationStatus.VERIFIED
     )
-

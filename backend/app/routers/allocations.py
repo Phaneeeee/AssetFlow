@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from backend.app.models.allocation import (
+from app.models.allocation import (
     Allocation,
     AllocationConflict,
     AllocationCreateRequest,
@@ -14,35 +14,9 @@ from backend.app.models.allocation import (
 
 router = APIRouter()
 
-ALLOCATIONS = [
-    Allocation(
-        id=1,
-        asset_tag="AF-0012",
-        asset_name="Dell Laptop",
-        holder="Priya Shah",
-        holder_type="Employee",
-        department="Engineering",
-        expected_return_date="2026-07-05",
-        status=AllocationStatus.OVERDUE,
-    ),
-]
-
-TRANSFER_REQUESTS = [
-    TransferRequest(
-        id=1,
-        asset_tag="AF-0012",
-        from_holder="Priya Shah",
-        to_holder="Raj Mehta",
-        reason="Needs laptop for client demo",
-        status=TransferStatus.REQUESTED,
-    )
-]
-
-ASSET_NAMES = {
-    "AF-0012": "Dell Laptop",
-    "AF-0062": "Projector",
-    "AF-0201": "Office Chair",
-}
+ALLOCATIONS: list[Allocation] = []
+TRANSFER_REQUESTS: list[TransferRequest] = []
+ASSET_NAMES: dict[str, str] = {}
 
 
 @router.get("", response_model=AllocationWorkspace)
