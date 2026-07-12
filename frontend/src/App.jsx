@@ -223,13 +223,17 @@ function AppShell({ session, onLogout }) {
         {activeView === "Resource Booking" && <ResourceBooking />}
         {activeView === "Maintenance" && <MaintenanceManagement />}
         {activeView === "Audit" && <AssetAudit />}
+        {activeView === "Reports" && <ReportsAnalytics />}
+        {activeView === "Notifications" && <NotificationsLog />}
         {activeView !== "Dashboard" &&
           activeView !== "Organization Setup" &&
           activeView !== "Assets" &&
           activeView !== "Allocation & Transfer" &&
           activeView !== "Resource Booking" &&
           activeView !== "Maintenance" &&
-          activeView !== "Audit" && (
+          activeView !== "Audit" &&
+          activeView !== "Reports" &&
+          activeView !== "Notifications" && (
           <EmptyModule title={activeView} />
         )}
       </section>
@@ -631,6 +635,220 @@ function verificationClassName(verification) {
     return "status-pill danger";
   }
   return "status-pill warning";
+}
+
+function ReportsAnalytics() {
+  const [reports, setReports] = useState(null);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadReports() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/reports`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load reports");
+        }
+        if (!ignore) {
+          setReports(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadReports();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  return (
+    <section className="reports-module">
+      {message && <p className="inline-message">{message}</p>}
+      <div className="report-chart-grid">
+        <BarChart title="Utilization by Department" points={reports?.utilization_by_department ?? []} />
+        <LineChart title="Maintenance Frequency" points={reports?.maintenance_frequency ?? []} />
+        <Heatmap title="Resource Booking Heatmap" points={reports?.booking_heatmap ?? []} />
+      </div>
+
+      <section className="insight-grid">
+        <InsightList title="Most Used Assets" items={reports?.most_used_assets ?? []} />
+        <InsightList title="Idle Assets" items={reports?.idle_assets ?? []} />
+        <InsightList title="Due for Maintenance / Retirement" items={reports?.due_for_maintenance ?? []} />
+      </section>
+
+      <button className="export-button" type="button">
+        Export Report
+      </button>
+    </section>
+  );
+}
+
+function BarChart({ title, points }) {
+  const max = Math.max(...points.map((point) => point.value), 1);
+
+  return (
+    <article className="report-card">
+      <h2>{title}</h2>
+      <div className="bar-chart">
+        {points.map((point) => (
+          <div className="bar-item" key={point.label}>
+            <span style={{ height: `${Math.max((point.value / max) * 100, 8)}%` }} />
+            <small>{point.label}</small>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function LineChart({ title, points }) {
+  return (
+    <article className="report-card">
+      <h2>{title}</h2>
+      <div className="line-chart">
+        {points.map((point, index) => (
+          <span
+            key={point.label}
+            style={{
+              left: `${(index / Math.max(points.length - 1, 1)) * 100}%`,
+              bottom: `${Math.min(point.value * 6, 86)}%`,
+            }}
+            title={`${point.label}: ${point.value}`}
+          />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function Heatmap({ title, points }) {
+  const max = Math.max(...points.map((point) => point.value), 1);
+
+  return (
+    <article className="report-card">
+      <h2>{title}</h2>
+      <div className="heatmap">
+        {points.map((point) => (
+          <div
+            key={point.label}
+            style={{ opacity: 0.25 + (point.value / max) * 0.75 }}
+          >
+            <strong>{point.label}</strong>
+            <span>{point.value}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function InsightList({ title, items }) {
+  return (
+    <article className="insight-card">
+      <h2>{title}</h2>
+      {items.map((item) => (
+        <p key={item.title}>
+          <strong>{item.title}</strong>
+          <span>{item.detail}</span>
+        </p>
+      ))}
+    </article>
+  );
+}
+
+function NotificationsLog() {
+  const [workspace, setWorkspace] = useState(null);
+  const [message, setMessage] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/notifications`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load notifications");
+        }
+        if (!ignore) {
+          setWorkspace(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadNotifications();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const filters = ["All", "Alerts", "Approvals", "Bookings"];
+  const notifications = (workspace?.notifications ?? []).filter((item) => {
+    if (activeFilter === "All") {
+      return true;
+    }
+    if (activeFilter === "Alerts") {
+      return item.type === "Alert";
+    }
+    if (activeFilter === "Approvals") {
+      return item.type === "Approval";
+    }
+    return item.type === "Booking";
+  });
+
+  return (
+    <section className="notifications-module">
+      {message && <p className="inline-message">{message}</p>}
+      <div className="notification-tabs" role="tablist" aria-label="Notification filters">
+        {filters.map((filter) => (
+          <button
+            className={filter === activeFilter ? "notification-tab active" : "notification-tab"}
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            type="button"
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      <div className="notification-list">
+        {notifications.map((item) => (
+          <article className="notification-row" key={item.id}>
+            <span />
+            <strong>{item.message}</strong>
+            <small>{item.age}</small>
+          </article>
+        ))}
+      </div>
+
+      <section className="activity-log-panel">
+        <h2>Activity Log</h2>
+        {(workspace?.activity_log ?? []).map((entry) => (
+          <article key={entry.id}>
+            <strong>{entry.actor}</strong>
+            <span>
+              {entry.action} - {entry.target}
+            </span>
+            <small>{entry.timestamp}</small>
+          </article>
+        ))}
+      </section>
+    </section>
+  );
 }
 
 function AllocationTransfer() {

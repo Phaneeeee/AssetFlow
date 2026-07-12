@@ -9,7 +9,9 @@ from backend.app.routers import (
     bookings,
     dashboard,
     maintenance,
+    notifications,
     organization,
+    reports,
 )
 
 app = FastAPI(
@@ -33,11 +35,13 @@ app.include_router(audits.router, prefix="/api/audits", tags=["audits"])
 app.include_router(bookings.router, prefix="/api/bookings", tags=["bookings"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(maintenance.router, prefix="/api/maintenance", tags=["maintenance"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(
     organization.router,
     prefix="/api/organization",
     tags=["organization"],
 )
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 
 
 @app.get("/api/health")
