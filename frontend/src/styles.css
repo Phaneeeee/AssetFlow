@@ -474,6 +474,11 @@ textarea {
   color: #f4c26b;
 }
 
+.status-pill.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .setup-note {
   margin: 0;
   padding-top: 10px;
@@ -703,6 +708,164 @@ textarea {
   border-style: dashed;
 }
 
+.maintenance-module,
+.audit-module {
+  display: grid;
+  gap: 16px;
+}
+
+.maintenance-form,
+.audit-form {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 10px;
+  border: 2px solid rgba(185, 185, 185, 0.55);
+  border-radius: 10px;
+  padding: 12px;
+  background: #191919;
+}
+
+.maintenance-form input,
+.maintenance-form select,
+.maintenance-form button,
+.audit-form input,
+.audit-form button {
+  min-height: 34px;
+  border-radius: 6px;
+}
+
+.maintenance-form button,
+.audit-form button,
+.close-cycle {
+  border: 2px solid var(--success);
+  border-radius: 8px;
+  background: rgba(122, 216, 154, 0.1);
+  cursor: pointer;
+}
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  min-height: 360px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.kanban-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border-right: 1px solid rgba(185, 185, 185, 0.5);
+}
+
+.kanban-column:last-child {
+  border-right: 0;
+}
+
+.kanban-column h2 {
+  min-height: 30px;
+  border-bottom: 1px solid rgba(185, 185, 185, 0.45);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.kanban-card {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(185, 185, 185, 0.55);
+  border-radius: 8px;
+  padding: 10px;
+  background: #191919;
+}
+
+.kanban-card small {
+  color: var(--muted);
+}
+
+.kanban-card em {
+  width: fit-content;
+  border: 1px solid #f4c26b;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #f4c26b;
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+.kanban-card button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #171717;
+  cursor: pointer;
+}
+
+.audit-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 2px solid rgba(185, 185, 185, 0.55);
+  border-radius: 10px;
+  padding: 12px;
+  background: #191919;
+}
+
+.audit-summary span {
+  color: var(--muted);
+}
+
+.audit-summary em {
+  border: 1px solid var(--success);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--success);
+  font-style: normal;
+}
+
+.audit-table {
+  display: grid;
+  border-top: 2px solid var(--line);
+  border-bottom: 2px solid var(--line);
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.7fr;
+  gap: 12px;
+  align-items: center;
+  min-height: 46px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(185, 185, 185, 0.38);
+}
+
+.audit-row:last-child {
+  border-bottom: 0;
+}
+
+.audit-head {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.discrepancy-strip {
+  border: 2px solid #d6ad4b;
+  border-radius: 8px;
+  background: rgba(214, 173, 75, 0.12);
+  color: #f4c26b;
+  padding: 10px 12px;
+  font-weight: 750;
+}
+
+.close-cycle {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
 @media (max-width: 820px) {
   .app-frame {
     width: calc(100% - 24px);
@@ -769,6 +932,22 @@ textarea {
   .booking-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .maintenance-form,
+  .audit-form,
+  .kanban-board,
+  .audit-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-column {
+    border-right: 0;
+    border-bottom: 1px solid rgba(185, 185, 185, 0.5);
+  }
+
+  .kanban-column:last-child {
+    border-bottom: 0;
+  }
 }
 
 @media (max-width: 540px) {
@@ -812,5 +991,13 @@ textarea {
 
   .button-row {
     display: grid;
+  }
+
+  .audit-table {
+    overflow-x: auto;
+  }
+
+  .audit-row {
+    min-width: 620px;
   }
 }

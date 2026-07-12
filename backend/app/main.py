@@ -1,7 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.routers import allocations, assets, auth, bookings, dashboard, organization
+from backend.app.routers import (
+    allocations,
+    assets,
+    audits,
+    auth,
+    bookings,
+    dashboard,
+    maintenance,
+    organization,
+)
 
 app = FastAPI(
     title="AssetFlow API",
@@ -20,8 +29,10 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
 app.include_router(allocations.router, prefix="/api/allocations", tags=["allocations"])
+app.include_router(audits.router, prefix="/api/audits", tags=["audits"])
 app.include_router(bookings.router, prefix="/api/bookings", tags=["bookings"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(maintenance.router, prefix="/api/maintenance", tags=["maintenance"])
 app.include_router(
     organization.router,
     prefix="/api/organization",

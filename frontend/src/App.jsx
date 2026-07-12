@@ -221,11 +221,15 @@ function AppShell({ session, onLogout }) {
         {activeView === "Assets" && <AssetDirectory />}
         {activeView === "Allocation & Transfer" && <AllocationTransfer />}
         {activeView === "Resource Booking" && <ResourceBooking />}
+        {activeView === "Maintenance" && <MaintenanceManagement />}
+        {activeView === "Audit" && <AssetAudit />}
         {activeView !== "Dashboard" &&
           activeView !== "Organization Setup" &&
           activeView !== "Assets" &&
           activeView !== "Allocation & Transfer" &&
-          activeView !== "Resource Booking" && (
+          activeView !== "Resource Booking" &&
+          activeView !== "Maintenance" &&
+          activeView !== "Audit" && (
           <EmptyModule title={activeView} />
         )}
       </section>
@@ -307,6 +311,326 @@ function DashboardHome() {
       </section>
     </>
   );
+}
+
+function MaintenanceManagement() {
+  const [workspace, setWorkspace] = useState(null);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    asset_tag: "AF-0062",
+    asset_name: "Projector",
+    issue: "Bulb flickers during meetings",
+    priority: "High",
+    raised_by: "Priya Shah",
+  });
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadMaintenance() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/maintenance`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load maintenance board");
+        }
+        if (!ignore) {
+          setWorkspace(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadMaintenance();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function updateForm(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function raiseMaintenanceRequest() {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to raise maintenance request");
+      }
+      setWorkspace((current) => ({
+        ...current,
+        requests: [...(current?.requests ?? []), data],
+      }));
+      setMessage(`${data.asset_tag} maintenance request added to Pending.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function moveRequest(request, status) {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maintenance/${request.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          technician: status === "Technician Assigned" ? "Vikram" : request.technician,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to update maintenance request");
+      }
+      setWorkspace((current) => ({
+        ...current,
+        requests: current.requests.map((item) => (item.id === data.id ? data : item)),
+      }));
+      setMessage(`${data.asset_tag} moved to ${data.status}.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  const statuses = workspace?.statuses ?? [
+    "Pending",
+    "Approved",
+    "Technician Assigned",
+    "In Progress",
+    "Resolved",
+  ];
+
+  return (
+    <section className="maintenance-module">
+      <div className="maintenance-form">
+        <input name="asset_tag" value={form.asset_tag} onChange={updateForm} />
+        <input name="asset_name" value={form.asset_name} onChange={updateForm} />
+        <select name="priority" value={form.priority} onChange={updateForm}>
+          {["Low", "Medium", "High", "Critical"].map((priority) => (
+            <option key={priority}>{priority}</option>
+          ))}
+        </select>
+        <input name="raised_by" value={form.raised_by} onChange={updateForm} />
+        <input name="issue" value={form.issue} onChange={updateForm} />
+        <button type="button" onClick={raiseMaintenanceRequest}>
+          Raise Request
+        </button>
+      </div>
+
+      {message && <p className="inline-message">{message}</p>}
+
+      <section className="kanban-board" aria-label="Maintenance workflow">
+        {statuses
+          .filter((status) => status !== "Rejected")
+          .map((status) => (
+            <div className="kanban-column" key={status}>
+              <h2>{status}</h2>
+              {(workspace?.requests ?? [])
+                .filter((request) => request.status === status)
+                .map((request) => (
+                  <article className="kanban-card" key={request.id}>
+                    <strong>{request.asset_tag}</strong>
+                    <span>{request.asset_name}</span>
+                    <small>{request.issue}</small>
+                    <em>{request.priority}</em>
+                    {status !== "Resolved" && (
+                      <button
+                        type="button"
+                        onClick={() => moveRequest(request, nextMaintenanceStatus(status))}
+                      >
+                        Move
+                      </button>
+                    )}
+                  </article>
+                ))}
+            </div>
+          ))}
+      </section>
+      <p className="setup-note">
+        Approving a card moves the asset to Under Maintenance; resolving returns it to Available.
+      </p>
+    </section>
+  );
+}
+
+function nextMaintenanceStatus(status) {
+  const flow = {
+    Pending: "Approved",
+    Approved: "Technician Assigned",
+    "Technician Assigned": "In Progress",
+    "In Progress": "Resolved",
+  };
+  return flow[status] ?? "Resolved";
+}
+
+function AssetAudit() {
+  const [workspace, setWorkspace] = useState(null);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    name: "Q4 Audit",
+    scope: "Facilities",
+    date_range: "1-15 Oct",
+    auditors: "Rahul Nair, Sana Iqbal",
+  });
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadAudit() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/audits`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Unable to load audits");
+        }
+        if (!ignore) {
+          setWorkspace(data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMessage(error.message);
+        }
+      }
+    }
+
+    loadAudit();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function updateAuditForm(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function createAuditCycle() {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/audits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          auditors: form.auditors.split(",").map((auditor) => auditor.trim()).filter(Boolean),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to create audit cycle");
+      }
+      setWorkspace((current) => ({
+        ...current,
+        cycles: [...(current?.cycles ?? []), data],
+      }));
+      setMessage(`${data.name} created and ready for auditors.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function closeAuditCycle(cycleId) {
+    setMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/audits/${cycleId}/close`, {
+        method: "PATCH",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to close audit cycle");
+      }
+      setWorkspace((current) => ({
+        ...current,
+        cycles: current.cycles.map((cycle) => (cycle.id === data.id ? data : cycle)),
+      }));
+      setMessage(`${data.name} closed. Flagged missing items can update asset statuses.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  const activeCycle = workspace?.cycles?.[0];
+
+  return (
+    <section className="audit-module">
+      <div className="audit-form">
+        <input name="name" value={form.name} onChange={updateAuditForm} />
+        <input name="scope" value={form.scope} onChange={updateAuditForm} />
+        <input name="date_range" value={form.date_range} onChange={updateAuditForm} />
+        <input name="auditors" value={form.auditors} onChange={updateAuditForm} />
+        <button type="button" onClick={createAuditCycle}>
+          Create Audit Cycle
+        </button>
+      </div>
+
+      {message && <p className="inline-message">{message}</p>}
+
+      {activeCycle && (
+        <>
+          <section className="audit-summary">
+            <strong>
+              {activeCycle.name}: {activeCycle.scope} - {activeCycle.date_range}
+            </strong>
+            <span>Auditors: {activeCycle.auditors.join(", ")}</span>
+            <em>{activeCycle.status}</em>
+          </section>
+
+          <div className="audit-table">
+            <div className="audit-row audit-head">
+              <span>Asset</span>
+              <span>Expected Location</span>
+              <span>Verification</span>
+            </div>
+            {activeCycle.assets.map((asset) => (
+              <article className="audit-row" key={asset.asset_tag}>
+                <span>
+                  {asset.asset_tag} {asset.asset_name}
+                </span>
+                <span>{asset.expected_location}</span>
+                <strong className={verificationClassName(asset.verification)}>
+                  {asset.verification}
+                </strong>
+              </article>
+            ))}
+          </div>
+
+          <div className="discrepancy-strip">
+            {workspace.discrepancy_count} assets flagged - discrepancy report generated automatically
+          </div>
+
+          <button
+            className="close-cycle"
+            type="button"
+            onClick={() => closeAuditCycle(activeCycle.id)}
+          >
+            Close Audit Cycle
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function verificationClassName(verification) {
+  if (verification === "Verified") {
+    return "status-pill active";
+  }
+  if (verification === "Missing") {
+    return "status-pill danger";
+  }
+  return "status-pill warning";
 }
 
 function AllocationTransfer() {
